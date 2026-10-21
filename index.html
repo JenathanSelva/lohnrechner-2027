@@ -49,6 +49,7 @@
   .hilfe { font-size: .8rem; color: var(--text-2); margin-top: 4px; }
   .fehler { font-size: .8rem; color: var(--rot); margin-top: 4px; min-height: 0; }
   .check { display: flex; gap: 8px; align-items: flex-start; font-size: .9rem; margin: 6px 0; cursor: pointer; }
+  .feld label.unterlabel { margin-top: 12px; font-weight: 500; }
   .check input { accent-color: var(--rot); width: 18px; height: 18px; margin: 2px 0 0; flex: none; }
   .ergebnis { border-left: 4px solid var(--rot); }
   .ergebnis .betrag { font-size: 2.2rem; font-weight: 700; line-height: 1.15; letter-spacing: -.01em; }
@@ -93,10 +94,28 @@
       <label for="lk">Lohnklasse</label>
       <select id="lk"></select>
     </div>
+    <div class="feld" id="feld-ausbildung" hidden>
+      <label for="ausbildung">Höchster Abschluss</label>
+      <select id="ausbildung">
+        <option value="">nicht angegeben</option>
+        <option value="master">Master</option>
+        <option value="bachelor">Bachelor</option>
+        <option value="efz">Eidg. Fähigkeitszeugnis (EFZ)</option>
+        <option value="andere">anderer / keiner</option>
+      </select>
+      <div class="hilfe">Für die funktionsbezogene Mindestanforderung (Art. 116m Abs. 3sexies BPV)</div>
+    </div>
+    <div class="feld" id="feld-ict" hidden>
+      <label class="check"><input type="checkbox" id="ict"> ICT-Funktion (Sparte Digitale Dienste / Informatik)</label>
+    </div>
     <div class="feld">
-      <label for="alter">Alter (Jahre)</label>
+      <label for="alter">Alter per 31.12.2026 (Jahre)</label>
       <input type="text" id="alter" inputmode="numeric" value="35" aria-describedby="alter-fehler">
       <div class="fehler" id="alter-fehler" role="alert"></div>
+      <label for="geburtsjahr" class="unterlabel">oder Geburtsjahr</label>
+      <input type="text" id="geburtsjahr" inputmode="numeric" placeholder="z. B. 1990" aria-describedby="geburtsjahr-hilfe geburtsjahr-fehler">
+      <div class="hilfe" id="geburtsjahr-hilfe">Alter = 2026 − Geburtsjahr (vollendete Jahre am 31.12.2026)</div>
+      <div class="fehler" id="geburtsjahr-fehler" role="alert"></div>
     </div>
     <div class="feld">
       <label for="erfahrung">Erfahrungsjahre</label>
@@ -105,6 +124,12 @@
       <div class="fehler" id="erfahrung-fehler" role="alert"></div>
       <label class="check"><input type="checkbox" id="manuell"> Erfahrungsjahre manuell eingeben</label>
       <label class="check"><input type="checkbox" id="abrunden"> Bruchteile von Jahren abrunden</label>
+      <div id="feld-lebenslauf">
+        <label for="lebenslauf" class="unterlabel">Erfahrungsjahre gemäss Lebenslauf (optional)</label>
+        <input type="text" id="lebenslauf" inputmode="decimal" placeholder="z. B. 12" aria-describedby="lebenslauf-hilfe lebenslauf-fehler">
+        <div class="hilfe" id="lebenslauf-hilfe">Für die aktuelle Funktion relevante Berufs- und Lebenserfahrung. Ersetzt das Schema nur unter den Bedingungen von Art. 116m Abs. 3bis/3ter BPV.</div>
+        <div class="fehler" id="lebenslauf-fehler" role="alert"></div>
+      </div>
     </div>
     <div class="feld">
       <label for="bg">Beschäftigungsgrad (%)</label>
@@ -112,9 +137,9 @@
       <div class="fehler" id="bg-fehler" role="alert"></div>
     </div>
     <div class="feld">
-      <label for="ist">Aktueller Jahreslohn in CHF (optional)</label>
+      <label for="ist">Bisheriger Jahreslohn inkl. Ortszuschlag in CHF (optional)</label>
       <input type="text" id="ist" inputmode="numeric" placeholder="z. B. 95'000" aria-describedby="ist-hilfe ist-fehler">
-      <div class="hilfe" id="ist-hilfe">Effektiver Lohn beim angegebenen Beschäftigungsgrad</div>
+      <div class="hilfe" id="ist-hilfe">Stand 31.12.2026, beim angegebenen Beschäftigungsgrad (Art. 116m Abs. 1 BPV)</div>
       <div class="fehler" id="ist-fehler" role="alert"></div>
     </div>
   </form>
@@ -152,6 +177,8 @@
     Annahme: Der maximale Ortszuschlag (Stufe 13) ist in der Lohntabelle bereits enthalten.
     Massgebend sind die Überführungsmitteilung und das HR. Das Schema kann im Einzelfall durch die
     effektiv anrechenbare Erfahrung ersetzt werden (Art. 116m BPV).
+    Grundlage: Vorabdruck der BPV-Änderung; verbindlich ist die im Bundesblatt veröffentlichte Fassung.
+    Nicht abgebildet: Lohnentwicklung nach Art. 39 Abs. 5 sowie Art. 116m Abs. 1bis–1quater BPV.
   </section>
 </main>
 
@@ -220,6 +247,17 @@ const KURVE = [
   { bis: 20, pp: 1.25 }
 ];
 
+// Art. 116m Abs. 3sexies BPV: geforderte Berufserfahrung (Jahre) je Abschluss; fehlt der Abschluss, gilt die Anforderung als nicht erfüllt
+const MINDESTANFORDERUNG = [
+  { von: 18, bis: 23, jahre: { master: 0, bachelor: 0, efz: 3 },
+    text: "Bachelor oder EFZ mit 3 Jahren Berufserfahrung" },
+  { von: 24, bis: 38, jahre: { master: 0, bachelor: 2, efz: 5 },
+    text: "Master, Bachelor mit 2 Jahren oder EFZ mit 5 Jahren Berufserfahrung" }
+];
+
+// Art. 116m Abs. 3septies BPV: ICT-Funktionen unter 5 Erfahrungsjahren vorübergehend in Lohnklasse 15
+const ICT = { von: 16, bis: 23, jahre: 5, einreihung: 15 };
+
 // === BERECHNUNG ===
 function schemaFuer(lk) {
   return SCHEMA.find(s => lk >= s.von && lk <= s.bis);
@@ -242,20 +280,50 @@ function kurvenProzent(jahre) {
   return prozent;
 }
 
-function berechne({ lk, alter, manuell, erfahrungManuell, abrunden, bg, ist }) {
+const kurvenLohn = (lk, jahre, faktor) => LOHNTABELLE.klassen[lk].min * kurvenProzent(jahre) / 100 * faktor;
+
+// Art. 116m Abs. 3bis–3quater BPV: Lebenslauf ersetzt das Schema bei Lohnerhöhung und einer Abweichung
+// von mehr als 25 % (Schema über 10 Jahre) bzw. mehr als 50 % (Schema höchstens 10 Jahre)
+function lebenslaufPruefung(lk, schema, lebenslauf, ist, faktor) {
+  const abweichung = schema > 0 ? Math.abs(schema - lebenslauf) / schema * 100 : (lebenslauf > 0 ? Infinity : 0);
+  const schwelle = schema > 10 ? 25 : 50;
+  // Annahme zu Bst. a: Der Lohn per 1.1.2027 (Maximum aus bisherigem Lohn und Kurve) ist mit Lebenslauf höher
+  const lohn2027 = jahre => Math.max(ist ?? 0, kurvenLohn(lk, jahre, faktor));
+  const erhoehung = Math.round(lohn2027(lebenslauf)) > Math.round(lohn2027(schema));
+  return { abweichung, schwelle, erhoehung, absatz: schema > 10 ? "3bis" : "3ter",
+    ersetzt: erhoehung && abweichung > schwelle };
+}
+
+// Art. 116m Abs. 3quinquies und 3septies BPV; 3septies geht vor
+function tiefereinreihung(lk, jahre, ausbildung, ict) {
+  if (ict && lk >= ICT.von && lk <= ICT.bis && jahre < ICT.jahre) return { lk: ICT.einreihung, absatz: "3septies" };
+  const anforderung = MINDESTANFORDERUNG.find(a => lk >= a.von && lk <= a.bis);
+  if (anforderung && ausbildung && !(jahre >= (anforderung.jahre[ausbildung] ?? Infinity))) {
+    return { lk: lk - 2, absatz: "3quinquies" };
+  }
+  return null;
+}
+
+function berechne({ lk, alter, manuell, erfahrungManuell, lebenslauf, abrunden, ausbildung, ict, bg, ist }) {
   const band = LOHNTABELLE.klassen[lk];
   const faktor = bg / 100;
-  const erfahrungRoh = manuell ? erfahrungManuell : schemaErfahrung(lk, alter);
+  const schema = manuell ? null : schemaErfahrung(lk, alter);
+  const pruefung = schema !== null && lebenslauf != null ? lebenslaufPruefung(lk, schema, lebenslauf, ist, faktor) : null;
+  const erfahrungRoh = manuell ? erfahrungManuell : pruefung?.ersetzt ? lebenslauf : schema;
   const erfahrung = abrunden ? Math.floor(erfahrungRoh) : erfahrungRoh;
-  const prozent = kurvenProzent(erfahrung);
-  const jahreslohn = band.min * prozent / 100 * faktor;
+  const tiefer = tiefereinreihung(lk, erfahrung, ausbildung, ict);
+  // Bei Tiefereinreihung wird der Lohn in der ursprünglichen Lohnklasse auf Basis von 0 Erfahrungsjahren festgesetzt
+  const lohnJahre = tiefer ? 0 : erfahrung;
+  const prozent = kurvenProzent(lohnJahre);
+  const jahreslohn = kurvenLohn(lk, lohnJahre, faktor);
   const r = {
-    lk, bg, erfahrungRoh, erfahrung, prozent, jahreslohn, monatslohn: jahreslohn / 13,
-    min: band.min * faktor, ziel: band.ziel * faktor, max: band.max * faktor, ist: null
+    lk, bg, ausbildung, schema, pruefung, erfahrungRoh, erfahrung, tiefer, lohnJahre, prozent, jahreslohn,
+    monatslohn: jahreslohn / 13, min: band.min * faktor, ziel: band.ziel * faktor, max: band.max * faktor, ist: null
   };
   if (ist != null) {
+    // Art. 116m Abs. 1 und 2bis BPV: mindestens bisheriger Lohn, sonst Anhebung auf die Kurve
     r.ist = { lohn: ist, differenz: ist - jahreslohn, differenzProzent: (ist / jahreslohn - 1) * 100,
-      lage: ist / r.min * 100 };
+      lage: ist / r.min * 100, lohn2027: Math.max(ist, jahreslohn) };
   }
   return r;
 }
@@ -289,8 +357,10 @@ function betrag(text) {
 
 // === UI ===
 const $ = id => document.getElementById(id);
-const el = { lk: $("lk"), alter: $("alter"), erfahrung: $("erfahrung"), manuell: $("manuell"),
-  abrunden: $("abrunden"), bg: $("bg"), ist: $("ist") };
+const el = { lk: $("lk"), alter: $("alter"), geburtsjahr: $("geburtsjahr"), erfahrung: $("erfahrung"),
+  manuell: $("manuell"), abrunden: $("abrunden"), lebenslauf: $("lebenslauf"), ausbildung: $("ausbildung"),
+  ict: $("ict"), bg: $("bg"), ist: $("ist") };
+const STICHTAG_JAHR = 2026;
 
 Object.keys(LOHNTABELLE.klassen).map(Number).sort((a, b) => a - b).forEach(k => {
   el.lk.add(new Option("Lohnklasse " + k, k, false, k === 15));
@@ -307,12 +377,30 @@ function fehler(input, text) {
 function leseEingaben() {
   const lk = Number(el.lk.value);
   const manuell = el.manuell.checked;
-  const alter = zahl(el.alter.value);
   const bg = zahl(el.bg.value);
   const erfahrungManuell = zahl(el.erfahrung.value);
   const istText = el.ist.value.trim();
   const ist = istText === "" ? null : betrag(istText);
   let ok = true;
+
+  $("feld-ausbildung").hidden = lk < MINDESTANFORDERUNG[0].von;
+  $("feld-ict").hidden = lk < ICT.von || lk > ICT.bis;
+  $("feld-lebenslauf").hidden = manuell;
+  const ausbildung = $("feld-ausbildung").hidden ? "" : el.ausbildung.value;
+  const ict = !$("feld-ict").hidden && el.ict.checked;
+
+  // Geburtsjahr überschreibt das Alter: vollendete Jahre am 31.12.2026
+  const gjText = el.geburtsjahr.value.trim(), gj = zahl(gjText);
+  const gjOk = gjText === "" || (Number.isInteger(gj) && gj >= 1900 && gj <= STICHTAG_JAHR);
+  ok = fehler(el.geburtsjahr, gjOk ? "" : "Bitte ein vierstelliges Geburtsjahr eingeben.") && ok;
+  el.alter.disabled = gjText !== "" && gjOk;
+  if (el.alter.disabled) el.alter.value = String(STICHTAG_JAHR - gj);
+  const alter = zahl(el.alter.value);
+
+  const lebenslaufText = el.lebenslauf.value.trim(), lebenslaufWert = zahl(lebenslaufText);
+  const lebenslauf = manuell || lebenslaufText === "" ? null : lebenslaufWert;
+  ok = fehler(el.lebenslauf, lebenslauf === null || (lebenslauf >= 0 && lebenslauf <= 55) ? "" :
+    "Bitte Erfahrungsjahre zwischen 0 und 55 eingeben.") && ok;
 
   const alterOk = Number.isInteger(alter) && alter >= 15 && alter <= 70;
   ok = fehler(el.alter, alterOk || (manuell && el.alter.value.trim() === "") ? "" :
@@ -336,7 +424,8 @@ function leseEingaben() {
   ok = fehler(el.bg, bg >= 10 && bg <= 100 ? "" : "Bitte einen Beschäftigungsgrad zwischen 10 und 100 % eingeben.") && ok;
   ok = fehler(el.ist, ist === null || ist > 0 ? "" : "Bitte einen positiven Betrag in CHF eingeben.") && ok;
 
-  return ok ? { lk, alter, manuell, erfahrungManuell, abrunden: el.abrunden.checked, bg, ist } : null;
+  return ok ? { lk, alter, manuell, erfahrungManuell, lebenslauf, abrunden: el.abrunden.checked,
+    ausbildung, ict, bg, ist } : null;
 }
 
 function kennzahl(titel, wert, klasse = "") {
@@ -345,9 +434,25 @@ function kennzahl(titel, wert, klasse = "") {
 
 function zeigeErgebnis(r) {
   const gerundet = r.erfahrung !== r.erfahrungRoh ? ` <span class="titel">(abgerundet von ${dezimal(r.erfahrungRoh, 2)})</span>` : "";
-  let hinweis = "";
-  if (r.lk >= 18 && r.lk <= 23) hinweis = "Voraussetzung: Bachelor oder 3 Jahre funktionsrelevante Erfahrung, sonst vorübergehend 2 Lohnklassen tiefer.";
-  if (r.lk >= 24) hinweis = "Voraussetzung: Master; ohne Master 2 Jahre Erfahrung mit Bachelor bzw. 5 Jahre ohne Bachelor, sonst vorübergehend 2 Lohnklassen tiefer.";
+  const hinweise = [];
+  const p = r.pruefung;
+  if (p) {
+    const abw = isFinite(p.abweichung) ? dezimal(p.abweichung, 1) + " %" : "unbegrenzt (Schema 0 Jahre)";
+    hinweise.push(p.ersetzt
+      ? `Lebenslauf ersetzt das Schema: ${jahreText(r.erfahrungRoh)} statt ${jahreText(r.schema)}. Abweichung ${abw}, Schwelle ${p.schwelle} % (Art. 116m Abs. ${p.absatz} BPV).`
+      : `Schema bleibt massgebend: ${!p.erhoehung ? "Lebenslauf führt zu keiner Lohnerhöhung"
+        : `Abweichung ${abw} liegt nicht über ${p.schwelle} %`} (Art. 116m Abs. ${p.absatz} BPV).`);
+  }
+  const anforderung = MINDESTANFORDERUNG.find(a => r.lk >= a.von && r.lk <= a.bis);
+  if (r.tiefer?.absatz === "3septies") {
+    hinweise.push(`ICT-Funktion mit weniger als ${ICT.jahre} Erfahrungsjahren: Einreihung vorübergehend in Lohnklasse ${ICT.einreihung}, höchstens 5 Jahre. Lohn in Lohnklasse ${r.lk} auf Basis von 0 Erfahrungsjahren (Art. 116m Abs. 3septies BPV).`);
+  } else if (r.tiefer) {
+    hinweise.push(`Mindestanforderung (${anforderung.text}) nicht erfüllt: Einreihung vorübergehend in Lohnklasse ${r.tiefer.lk}, bis sie erfüllt ist, höchstens 5 Jahre. Lohn in Lohnklasse ${r.lk} auf Basis von 0 Erfahrungsjahren (Art. 116m Abs. 3quinquies BPV).`);
+  } else if (anforderung && r.ausbildung) {
+    hinweise.push(`Mindestanforderung erfüllt (${anforderung.text}, Art. 116m Abs. 3sexies BPV).`);
+  } else if (anforderung) {
+    hinweise.push(`Mindestanforderung: ${anforderung.text}. Sonst Einreihung vorübergehend 2 Lohnklassen tiefer; der Lohn wird dann in der ursprünglichen Lohnklasse auf Basis von 0 Erfahrungsjahren festgesetzt (Art. 116m Abs. 3quinquies/3sexies BPV). Abschluss oben wählen für eine Prüfung.`);
+  }
   $("ergebnis").innerHTML = `
     <h2>Kurvenlohn Lohnklasse ${r.lk}${r.bg < 100 ? ` · ${dezimal(r.bg, 2)} %` : ""}</h2>
     <div class="betrag">${chf(r.jahreslohn)} <span style="font-size:1rem;font-weight:400">pro Jahr</span></div>
@@ -355,8 +460,9 @@ function zeigeErgebnis(r) {
     <div class="kennzahlen">
       ${kennzahl("Kurvenprozent", prozentText(r.prozent))}
       ${kennzahl("Angerechnete Erfahrung", jahreText(r.erfahrung) + gerundet)}
+      ${r.tiefer ? kennzahl("Für den Lohn massgebend", jahreText(0)) : ""}
     </div>
-    ${hinweis ? `<div class="hinweis">${hinweis}</div>` : ""}`;
+    ${hinweise.map(h => `<div class="hinweis">${h}</div>`).join("")}`;
 
   $("lohnband").innerHTML = `
     <h2>Lohnband Lohnklasse ${r.lk}${r.bg < 100 ? ` (bei ${dezimal(r.bg, 2)} %)` : ""}</h2>
@@ -377,16 +483,17 @@ function zeigeErgebnis(r) {
         ${kennzahl("Differenz zur Kurve", chfVorzeichen(r.ist.differenz))}
         ${kennzahl("Differenz in %", (r.ist.differenzProzent >= 0 ? "+" : "") + prozentText(r.ist.differenzProzent, 2))}
         ${kennzahl("Lohnbandlage", prozentText(r.ist.lage, 2) + " des Mindestlohns")}
+        ${kennzahl("Lohn per 1.1.2027 (voraussichtlich)", chf(r.ist.lohn2027))}
       </div>
       <p>${ueber
-        ? "Dein Lohn ist garantiert. Lohnerhöhungen fallen geringer aus oder entfallen, bis die Kurve dich einholt."
-        : "Dein Lohn liegt unter der Kurve. Du kannst mit höheren Lohnanstiegen rechnen."}</p>`;
+        ? "Dein Lohn ist garantiert (Art. 116m Abs. 1 BPV). Lohnerhöhungen fallen geringer aus oder entfallen, bis die Kurve dich einholt."
+        : "Dein Lohn liegt unter der Kurve. Er wird per 1.1.2027 auf den Kurvenlohn angehoben (Art. 116m Abs. 2bis BPV) und entwickelt sich danach entlang der Kurve."}</p>`;
   }
 }
 
 function zeigeTabelle(r) {
   const faktor = r.bg / 100, min = LOHNTABELLE.klassen[r.lk].min;
-  const aktiv = Math.min(Math.floor(r.erfahrung), 20);
+  const aktiv = Math.min(Math.floor(r.lohnJahre), 20);
   let vorher = null, html = "";
   for (let j = 0; j <= 20; j++) {
     const p = kurvenProzent(j), lohn = Math.round(min * p / 100 * faktor);
@@ -440,17 +547,17 @@ function zeichneDiagramm(r) {
   for (let j = 0; j <= X_MAX; j++) punkte.push(`${x(j).toFixed(1)},${y(lohnBei(j)).toFixed(1)}`);
   s += `<polyline points="${punkte.join(" ")}" fill="none" stroke="var(--rot)" stroke-width="3" stroke-linejoin="round"/>`;
 
-  const px = x(Math.min(r.erfahrung, X_MAX));
+  const px = x(Math.min(r.lohnJahre, X_MAX));
   s += `<line x1="${px}" x2="${px}" y1="${m.t}" y2="${H - m.b}" stroke="var(--text-2)" stroke-dasharray="2 3"/>`;
   if (r.ist) {
     s += `<circle cx="${px}" cy="${y(r.ist.lohn)}" r="6" fill="var(--chart-ist)" stroke="var(--karte)" stroke-width="2">
       <title>Aktueller Lohn: ${chf(r.ist.lohn)}</title></circle>`;
   }
   s += `<circle cx="${px}" cy="${y(r.jahreslohn)}" r="7" fill="var(--rot)" stroke="var(--karte)" stroke-width="2">
-    <title>Kurvenlohn bei ${jahreText(r.erfahrung)}: ${chf(r.jahreslohn)}</title></circle>`;
+    <title>Kurvenlohn bei ${jahreText(r.lohnJahre)}: ${chf(r.jahreslohn)}</title></circle>`;
 
   $("diagramm").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img"
-    aria-label="Lohnentwicklungskurve Lohnklasse ${r.lk}: aktuelle Position ${jahreText(r.erfahrung)}, ${chf(r.jahreslohn)}">${s}</svg>`;
+    aria-label="Lohnentwicklungskurve Lohnklasse ${r.lk}: aktuelle Position ${jahreText(r.lohnJahre)}, ${chf(r.jahreslohn)}">${s}</svg>`;
 }
 
 let letztesErgebnis = null;
