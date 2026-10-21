@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lohnrechner Bundesverwaltung 2027</title>
+<style>
+  :root {
+    --rot: #DC0018; --rot-hell: #fde8ea;
+    --bg: #f4f5f7; --karte: #ffffff; --text: #1d2228; --text-2: #5b6470;
+    --linie: #dde1e6; --feld: #ffffff; --gruen: #1a7f4b; --gruen-hell: #e6f4ec;
+    --hinweis: #fff6e0; --hinweis-rand: #e8b730;
+    --chart-min: #8a939e; --chart-ziel: #1d2228; --chart-max: #b3bac3; --chart-ist: #1f5fbf;
+    --radius: 12px; --schatten: 0 1px 2px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --rot: #ff3b52; --rot-hell: #3a1218;
+      --bg: #111418; --karte: #1a1e24; --text: #e8eaed; --text-2: #a2aab4;
+      --linie: #2e343c; --feld: #14171c; --gruen: #4cc38a; --gruen-hell: #12301f;
+      --hinweis: #2e2610; --hinweis-rand: #b8901c;
+      --chart-min: #8a939e; --chart-ziel: #e8eaed; --chart-max: #5b6470; --chart-ist: #6ea8ff;
+      --schatten: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { background: var(--karte); border-top: 4px solid var(--rot); border-bottom: 1px solid var(--linie); }
+  header .innen { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  h1 { margin: 0; font-size: 1.35rem; }
+  h1 span { color: var(--rot); }
+  header p { margin: 4px 0 0; color: var(--text-2); font-size: .9rem; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+  @media (min-width: 900px) { main { grid-template-columns: 340px 1fr; align-items: start; }
+    .breit { grid-column: 1 / -1; } }
+  .karte { background: var(--karte); border: 1px solid var(--linie); border-radius: var(--radius);
+    box-shadow: var(--schatten); padding: 16px; min-width: 0; }
+  h2 { margin: 0 0 12px; font-size: 1rem; }
+  .feld { margin-bottom: 14px; }
+  .feld label { display: block; font-weight: 600; font-size: .9rem; margin-bottom: 4px; }
+  .feld input[type=text], .feld select { width: 100%; padding: 10px 12px; font: inherit; color: inherit;
+    background: var(--feld); border: 1px solid var(--linie); border-radius: 8px; }
+  .feld input:focus, .feld select:focus { outline: 2px solid var(--rot); outline-offset: 1px; }
+  .feld input:disabled { opacity: .65; }
+  .feld input[aria-invalid=true] { border-color: var(--rot); }
+  .hilfe { font-size: .8rem; color: var(--text-2); margin-top: 4px; }
+  .fehler { font-size: .8rem; color: var(--rot); margin-top: 4px; min-height: 0; }
+  .check { display: flex; gap: 8px; align-items: flex-start; font-size: .9rem; margin: 6px 0; cursor: pointer; }
+  .check input { accent-color: var(--rot); width: 18px; height: 18px; margin: 2px 0 0; flex: none; }
+  .ergebnis { border-left: 4px solid var(--rot); }
+  .ergebnis .betrag { font-size: 2.2rem; font-weight: 700; line-height: 1.15; letter-spacing: -.01em; }
+  .ergebnis .monat { font-size: 1.1rem; color: var(--text-2); margin-top: 2px; }
+  .kennzahlen { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-top: 16px; }
+  .kennzahl { background: var(--bg); border-radius: 8px; padding: 10px 12px; }
+  .kennzahl .wert { font-weight: 700; font-size: 1.1rem; }
+  .kennzahl .titel { font-size: .8rem; color: var(--text-2); }
+  .band { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+  .band .kennzahl.ziel { outline: 2px solid var(--rot); outline-offset: -2px; }
+  .vergleich.ueber { background: var(--gruen-hell); }
+  .vergleich.unter { background: var(--rot-hell); }
+  .vergleich p { margin: 8px 0 0; }
+  .hinweis { background: var(--hinweis); border-left: 4px solid var(--hinweis-rand); padding: 10px 12px;
+    border-radius: 8px; font-size: .9rem; margin-top: 12px; }
+  .leer { color: var(--text-2); }
+  svg { width: 100%; height: auto; display: block; }
+  svg text { fill: var(--text-2); font-size: 11px; font-family: inherit; }
+  .legende { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .8rem; color: var(--text-2); margin-top: 8px; }
+  .legende i { display: inline-block; width: 18px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 6px; }
+  details summary { cursor: pointer; font-weight: 600; }
+  .tabelle-wrap { overflow-x: auto; margin-top: 12px; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; font-variant-numeric: tabular-nums; }
+  th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--linie); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  tr.aktiv td { background: var(--rot-hell); font-weight: 700; }
+  .disclaimer { font-size: .85rem; color: var(--text-2); border: 1px dashed var(--linie); }
+  .disclaimer strong { color: var(--text); }
+</style>
+</head>
+<body>
+<header><div class="innen">
+  <h1>Lohnrechner <span>Bundesverwaltung 2027</span></h1>
+  <p>Lohnentwicklungskurve des neuen Lohnsystems, gültig ab 1.1.2027</p>
+</div></header>
+
+<main>
+  <form class="karte" id="eingaben" autocomplete="off" novalidate>
+    <h2>Eingaben</h2>
+    <div class="feld">
+      <label for="lk">Lohnklasse</label>
+      <select id="lk"></select>
+    </div>
+    <div class="feld">
+      <label for="alter">Alter (Jahre)</label>
+      <input type="text" id="alter" inputmode="numeric" value="35" aria-describedby="alter-fehler">
+      <div class="fehler" id="alter-fehler" role="alert"></div>
+    </div>
+    <div class="feld">
+      <label for="erfahrung">Erfahrungsjahre</label>
+      <input type="text" id="erfahrung" inputmode="decimal" disabled aria-describedby="erfahrung-hilfe erfahrung-fehler">
+      <div class="hilfe" id="erfahrung-hilfe"></div>
+      <div class="fehler" id="erfahrung-fehler" role="alert"></div>
+      <label class="check"><input type="checkbox" id="manuell"> Erfahrungsjahre manuell eingeben</label>
+      <label class="check"><input type="checkbox" id="abrunden"> Bruchteile von Jahren abrunden</label>
+    </div>
+    <div class="feld">
+      <label for="bg">Beschäftigungsgrad (%)</label>
+      <input type="text" id="bg" inputmode="decimal" value="100" aria-describedby="bg-fehler">
+      <div class="fehler" id="bg-fehler" role="alert"></div>
+    </div>
+    <div class="feld">
+      <label for="ist">Aktueller Jahreslohn in CHF (optional)</label>
+      <input type="text" id="ist" inputmode="numeric" placeholder="z. B. 95'000" aria-describedby="ist-hilfe ist-fehler">
+      <div class="hilfe" id="ist-hilfe">Effektiver Lohn beim angegebenen Beschäftigungsgrad</div>
+      <div class="fehler" id="ist-fehler" role="alert"></div>
+    </div>
+  </form>
+
+  <div style="display:grid;gap:16px;min-width:0">
+    <section class="karte ergebnis" aria-live="polite" id="ergebnis"></section>
+    <section class="karte" id="lohnband"></section>
+    <section class="karte vergleich" id="vergleich" hidden></section>
+  </div>
+
+  <section class="karte breit">
+    <h2>Lohnentwicklungskurve</h2>
+    <div id="diagramm"></div>
+    <div class="legende">
+      <span><i style="border-color:var(--rot)"></i>Lohnentwicklungskurve</span>
+      <span><i style="border-color:var(--chart-max);border-top-style:dotted"></i>Maximallohn</span>
+      <span><i style="border-color:var(--chart-ziel);border-top-style:dashed"></i>Ziellohn</span>
+      <span><i style="border-color:var(--chart-min);border-top-style:dashed"></i>Mindestlohn</span>
+      <span><i style="border-color:var(--chart-ist);border-top-width:0;width:10px;height:10px;border-radius:50%;background:var(--chart-ist)"></i>Aktueller Lohn</span>
+    </div>
+  </section>
+
+  <section class="karte breit">
+    <details>
+      <summary>Tabelle Jahr für Jahr (0–20 Erfahrungsjahre)</summary>
+      <div class="tabelle-wrap"><table>
+        <thead><tr><th>Jahr</th><th>Kurve</th><th>Jahreslohn</th><th>Monatslohn (÷13)</th><th>Zuwachs</th></tr></thead>
+        <tbody id="tabelle"></tbody>
+      </table></div>
+    </details>
+  </section>
+
+  <section class="karte breit disclaimer">
+    <strong>Inoffizieller Rechner.</strong> Werte vorbehältlich der Teuerungsanpassung Ende 2026.
+    Annahme: Der maximale Ortszuschlag (Stufe 13) ist in der Lohntabelle bereits enthalten.
+    Massgebend sind die Überführungsmitteilung und das HR. Das Schema kann im Einzelfall durch die
+    effektiv anrechenbare Erfahrung ersetzt werden (Art. 116m BPV).
+  </section>
+</main>
+
+<script>
+// === DATEN ===
+// Jahreslöhne bei 100 % in CHF. Nach der Teuerungsanpassung nur diese Konstante aktualisieren.
+const LOHNTABELLE = {
+  "gueltigAb": "2027-01-01",
+  "klassen": {
+    "38": { "min": 256977, "ziel": 385465, "max": 411163 },
+    "37": { "min": 236047, "ziel": 354070, "max": 377675 },
+    "36": { "min": 221833, "ziel": 332749, "max": 354932 },
+    "35": { "min": 207755, "ziel": 311633, "max": 332408 },
+    "34": { "min": 193833, "ziel": 290749, "max": 310132 },
+    "33": { "min": 180036, "ziel": 270053, "max": 288057 },
+    "32": { "min": 166402, "ziel": 249604, "max": 266244 },
+    "31": { "min": 156713, "ziel": 235069, "max": 250740 },
+    "30": { "min": 147278, "ziel": 220917, "max": 235645 },
+    "29": { "min": 134931, "ziel": 202396, "max": 215889 },
+    "28": { "min": 126248, "ziel": 189372, "max": 201997 },
+    "27": { "min": 118551, "ziel": 177826, "max": 189681 },
+    "26": { "min": 113346, "ziel": 170019, "max": 181354 },
+    "25": { "min": 108135, "ziel": 162203, "max": 173016 },
+    "24": { "min": 102943, "ziel": 154414, "max": 164708 },
+    "23": { "min": 97231, "ziel": 145846, "max": 155569 },
+    "22": { "min": 92876, "ziel": 139313, "max": 148601 },
+    "21": { "min": 89450, "ziel": 134171, "max": 143116 },
+    "20": { "min": 86031, "ziel": 129047, "max": 137650 },
+    "19": { "min": 82610, "ziel": 123915, "max": 132176 },
+    "18": { "min": 79197, "ziel": 118795, "max": 126715 },
+    "17": { "min": 75764, "ziel": 113646, "max": 121222 },
+    "16": { "min": 72883, "ziel": 109324, "max": 116612 },
+    "15": { "min": 70196, "ziel": 105293, "max": 112313 },
+    "14": { "min": 67547, "ziel": 101320, "max": 108075 },
+    "13": { "min": 65323, "ziel": 97984, "max": 104516 },
+    "12": { "min": 63159, "ziel": 94738, "max": 101054 },
+    "11": { "min": 61033, "ziel": 91549, "max": 97652 },
+    "10": { "min": 58956, "ziel": 88434, "max": 94330 },
+    "9": { "min": 56858, "ziel": 85286, "max": 90972 },
+    "8": { "min": 54749, "ziel": 82123, "max": 87598 },
+    "7": { "min": 52691, "ziel": 79037, "max": 84306 },
+    "6": { "min": 50612, "ziel": 75918, "max": 80979 },
+    "5": { "min": 48527, "ziel": 72790, "max": 77643 },
+    "4": { "min": 47263, "ziel": 70895, "max": 75621 },
+    "3": { "min": 46582, "ziel": 69873, "max": 74531 },
+    "2": { "min": 45900, "ziel": 68850, "max": 73440 },
+    "1": { "min": 45227, "ziel": 67840, "max": 72363 }
+  }
+};
+
+// Überführungsschema: Erfahrungsjahre = (Alter − abzug) × faktor
+const SCHEMA = [
+  { von: 1, bis: 5, abzug: 20, faktor: 1 },
+  { von: 6, bis: 17, abzug: 20, faktor: 0.75 },
+  { von: 18, bis: 23, abzug: 24, faktor: 0.75 },
+  { von: 24, bis: 27, abzug: 26, faktor: 0.75 },
+  { von: 28, bis: 38, abzug: 26, faktor: 0.5 }
+];
+
+// Lohnentwicklungskurve in % des Mindestlohns: Start + Prozentpunkte pro Jahr je Abschnitt
+const KURVE_START = 110;
+const KURVE = [
+  { bis: 5, pp: 2.75 },
+  { bis: 10, pp: 2.25 },
+  { bis: 15, pp: 1.75 },
+  { bis: 20, pp: 1.25 }
+];
+
+// === BERECHNUNG ===
+function schemaFuer(lk) {
+  return SCHEMA.find(s => lk >= s.von && lk <= s.bis);
+}
+
+function schemaErfahrung(lk, alter) {
+  const s = schemaFuer(lk);
+  return Math.max(0, (alter - s.abzug) * s.faktor);
+}
+
+// Additiv, nicht verzinst; Bruchteile linear interpoliert, ab 20 Jahren konstant 150 %
+function kurvenProzent(jahre) {
+  let prozent = KURVE_START, von = 0;
+  for (const abschnitt of KURVE) {
+    const anteil = Math.min(Math.max(jahre, 0), abschnitt.bis) - von;
+    if (anteil <= 0) break;
+    prozent += anteil * abschnitt.pp;
+    von = abschnitt.bis;
+  }
+  return prozent;
+}
+
+function berechne({ lk, alter, manuell, erfahrungManuell, abrunden, bg, ist }) {
+  const band = LOHNTABELLE.klassen[lk];
+  const faktor = bg / 100;
+  const erfahrungRoh = manuell ? erfahrungManuell : schemaErfahrung(lk, alter);
+  const erfahrung = abrunden ? Math.floor(erfahrungRoh) : erfahrungRoh;
+  const prozent = kurvenProzent(erfahrung);
+  const jahreslohn = band.min * prozent / 100 * faktor;
+  const r = {
+    lk, bg, erfahrungRoh, erfahrung, prozent, jahreslohn, monatslohn: jahreslohn / 13,
+    min: band.min * faktor, ziel: band.ziel * faktor, max: band.max * faktor, ist: null
+  };
+  if (ist != null) {
+    r.ist = { lohn: ist, differenz: ist - jahreslohn, differenzProzent: (ist / jahreslohn - 1) * 100,
+      lage: ist / r.min * 100 };
+  }
+  return r;
+}
+
+// === FORMAT ===
+function tausender(n) {
+  const r = Math.round(n);
+  return (r < 0 ? "−" : "") + Math.abs(r).toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'");
+}
+const chf = n => "CHF " + tausender(n);
+function chfVorzeichen(n) {
+  const r = Math.round(n);
+  return (r > 0 ? "+" : r < 0 ? "−" : "±") + "CHF " + tausender(Math.abs(r));
+}
+function dezimal(n, stellen = 4) {
+  return Number(n.toFixed(stellen)).toString().replace(".", ",").replace("-", "−");
+}
+const prozentText = (n, stellen = 4) => dezimal(n, stellen) + " %";
+const jahreText = n => dezimal(n, 2) + (n === 1 ? " Jahr" : " Jahre");
+// Akzeptiert Apostroph/Leerzeichen als Tausendertrenner, Komma oder Punkt als Dezimaltrenner, "%" und "8." beim Tippen
+function zahl(text) {
+  const t = String(text).trim().replace(/['’\s%]/g, "").replace(",", ".");
+  return !/^-?(\d+\.?\d*|\.\d+)$/.test(t) ? NaN : Number(t);
+}
+
+// Beträge: "95.000" bzw. "95,000" (Trenner vor genau 3 Ziffern) als Tausendertrenner lesen
+function betrag(text) {
+  const t = String(text).trim().replace(/^CHF/i, "").replace(/['’\s]/g, "");
+  return zahl(/^\d{1,3}([.,]\d{3})+$/.test(t) ? t.replace(/[.,]/g, "") : t);
+}
+
+// === UI ===
+const $ = id => document.getElementById(id);
+const el = { lk: $("lk"), alter: $("alter"), erfahrung: $("erfahrung"), manuell: $("manuell"),
+  abrunden: $("abrunden"), bg: $("bg"), ist: $("ist") };
+
+Object.keys(LOHNTABELLE.klassen).map(Number).sort((a, b) => a - b).forEach(k => {
+  el.lk.add(new Option("Lohnklasse " + k, k, false, k === 15));
+});
+
+function fehler(input, text) {
+  $(input.id + "-fehler").textContent = text || "";
+  input.setAttribute("aria-invalid", text ? "true" : "false");
+  return !text;
+}
+
+function leseEingaben() {
+  const lk = Number(el.lk.value);
+  const manuell = el.manuell.checked;
+  const alter = zahl(el.alter.value);
+  const bg = zahl(el.bg.value);
+  const erfahrungManuell = zahl(el.erfahrung.value);
+  const istText = el.ist.value.trim();
+  const ist = istText === "" ? null : betrag(istText);
+  let ok = true;
+
+  const alterOk = Number.isInteger(alter) && alter >= 15 && alter <= 70;
+  ok = fehler(el.alter, alterOk || (manuell && el.alter.value.trim() === "") ? "" :
+    "Bitte ein ganzzahliges Alter zwischen 15 und 70 eingeben.") && ok;
+  if (!manuell && !alterOk) ok = false;
+
+  const s = schemaFuer(lk);
+  if (manuell) {
+    ok = fehler(el.erfahrung, erfahrungManuell >= 0 && erfahrungManuell <= 55 ? "" :
+      "Bitte Erfahrungsjahre zwischen 0 und 55 eingeben (z. B. 8.25).") && ok;
+    $("erfahrung-hilfe").textContent = "Eigene Eingabe, Dezimalzahlen erlaubt";
+  } else {
+    fehler(el.erfahrung, "");
+    const v = alterOk ? schemaErfahrung(lk, alter) : NaN;
+    el.erfahrung.value = isNaN(v) ? "" : dezimal(v, 2).replace(",", ".");
+    $("erfahrung-hilfe").textContent = alterOk
+      ? `Schema LK ${s.von}–${s.bis}: max(0; (${alter} − ${s.abzug}) × ${dezimal(s.faktor * 100)} %) = ${jahreText(v)}`
+      : `Schema LK ${s.von}–${s.bis}: (Alter − ${s.abzug}) × ${dezimal(s.faktor * 100)} %`;
+  }
+
+  ok = fehler(el.bg, bg >= 10 && bg <= 100 ? "" : "Bitte einen Beschäftigungsgrad zwischen 10 und 100 % eingeben.") && ok;
+  ok = fehler(el.ist, ist === null || ist > 0 ? "" : "Bitte einen positiven Betrag in CHF eingeben.") && ok;
+
+  return ok ? { lk, alter, manuell, erfahrungManuell, abrunden: el.abrunden.checked, bg, ist } : null;
+}
+
+function kennzahl(titel, wert, klasse = "") {
+  return `<div class="kennzahl ${klasse}"><div class="titel">${titel}</div><div class="wert">${wert}</div></div>`;
+}
+
+function zeigeErgebnis(r) {
+  const gerundet = r.erfahrung !== r.erfahrungRoh ? ` <span class="titel">(abgerundet von ${dezimal(r.erfahrungRoh, 2)})</span>` : "";
+  let hinweis = "";
+  if (r.lk >= 18 && r.lk <= 23) hinweis = "Voraussetzung: Bachelor oder 3 Jahre funktionsrelevante Erfahrung, sonst vorübergehend 2 Lohnklassen tiefer.";
+  if (r.lk >= 24) hinweis = "Voraussetzung: Master; ohne Master 2 Jahre Erfahrung mit Bachelor bzw. 5 Jahre ohne Bachelor, sonst vorübergehend 2 Lohnklassen tiefer.";
+  $("ergebnis").innerHTML = `
+    <h2>Kurvenlohn Lohnklasse ${r.lk}${r.bg < 100 ? ` · ${dezimal(r.bg, 2)} %` : ""}</h2>
+    <div class="betrag">${chf(r.jahreslohn)} <span style="font-size:1rem;font-weight:400">pro Jahr</span></div>
+    <div class="monat">${chf(r.monatslohn)} pro Monat (13 Monatslöhne)</div>
+    <div class="kennzahlen">
+      ${kennzahl("Kurvenprozent", prozentText(r.prozent))}
+      ${kennzahl("Angerechnete Erfahrung", jahreText(r.erfahrung) + gerundet)}
+    </div>
+    ${hinweis ? `<div class="hinweis">${hinweis}</div>` : ""}`;
+
+  $("lohnband").innerHTML = `
+    <h2>Lohnband Lohnklasse ${r.lk}${r.bg < 100 ? ` (bei ${dezimal(r.bg, 2)} %)` : ""}</h2>
+    <div class="band">
+      ${kennzahl("Mindestlohn", chf(r.min))}
+      ${kennzahl("Ziellohn", chf(r.ziel), "ziel")}
+      ${kennzahl("Maximallohn", chf(r.max))}
+    </div>`;
+
+  const v = $("vergleich");
+  v.hidden = !r.ist;
+  if (r.ist) {
+    const ueber = Math.round(r.ist.differenz) >= 0;
+    v.className = "karte vergleich " + (ueber ? "ueber" : "unter");
+    v.innerHTML = `
+      <h2>Vergleich mit deinem aktuellen Lohn</h2>
+      <div class="kennzahlen" style="margin-top:0">
+        ${kennzahl("Differenz zur Kurve", chfVorzeichen(r.ist.differenz))}
+        ${kennzahl("Differenz in %", (r.ist.differenzProzent >= 0 ? "+" : "") + prozentText(r.ist.differenzProzent, 2))}
+        ${kennzahl("Lohnbandlage", prozentText(r.ist.lage, 2) + " des Mindestlohns")}
+      </div>
+      <p>${ueber
+        ? "Dein Lohn ist garantiert. Lohnerhöhungen fallen geringer aus oder entfallen, bis die Kurve dich einholt."
+        : "Dein Lohn liegt unter der Kurve. Du kannst mit höheren Lohnanstiegen rechnen."}</p>`;
+  }
+}
+
+function zeigeTabelle(r) {
+  const faktor = r.bg / 100, min = LOHNTABELLE.klassen[r.lk].min;
+  const aktiv = Math.min(Math.floor(r.erfahrung), 20);
+  let vorher = null, html = "";
+  for (let j = 0; j <= 20; j++) {
+    const p = kurvenProzent(j), lohn = Math.round(min * p / 100 * faktor);
+    // Zuwachs aus gerundeten Jahreslöhnen, damit die Spalte zur Anzeige passt
+    html += `<tr class="${j === aktiv ? "aktiv" : ""}"><td>${j}</td><td>${prozentText(p)}</td><td>${chf(lohn)}</td>
+      <td>${chf(lohn / 13)}</td><td>${vorher === null ? "–" : "+" + chf(lohn - vorher)}</td></tr>`;
+    vorher = lohn;
+  }
+  $("tabelle").innerHTML = html;
+}
+
+function niceSchritt(roh) {
+  const p = Math.pow(10, Math.floor(Math.log10(roh))), n = roh / p;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p;
+}
+
+function zeichneDiagramm(r) {
+  const W = 680, H = 340, m = { l: 64, r: 44, t: 16, b: 44 }, X_MAX = 25;
+  let lo = r.min * 0.95, hi = r.max * 1.03;
+  if (r.ist) { lo = Math.min(lo, r.ist.lohn * 0.97); hi = Math.max(hi, r.ist.lohn * 1.03); }
+  const schritt = niceSchritt((hi - lo) / 5);
+  lo = Math.floor(lo / schritt) * schritt; hi = Math.ceil(hi / schritt) * schritt;
+  const x = j => m.l + j / X_MAX * (W - m.l - m.r);
+  const y = v => H - m.b - (v - lo) / (hi - lo) * (H - m.t - m.b);
+  const faktor = r.bg / 100, min100 = LOHNTABELLE.klassen[r.lk].min;
+  const lohnBei = j => min100 * kurvenProzent(j) / 100 * faktor;
+
+  let s = "";
+  for (let v = lo; v <= hi + 1e-6; v += schritt) {
+    s += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--linie)"/>
+      <text x="${m.l - 8}" y="${y(v) + 4}" text-anchor="end">${tausender(v)}</text>`;
+  }
+  for (let j = 0; j <= X_MAX; j += 5) {
+    s += `<text x="${x(j)}" y="${H - m.b + 18}" text-anchor="middle">${j}</text>`;
+  }
+  s += `<text x="${(m.l + W - m.r) / 2}" y="${H - 6}" text-anchor="middle">Erfahrungsjahre</text>`;
+  s += `<text transform="translate(14 ${(m.t + H - m.b) / 2}) rotate(-90)" text-anchor="middle">CHF pro Jahr</text>`;
+
+  // Beschriftungen von oben nach unten mit Mindestabstand, damit Max/Ziel/Min nicht überlappen
+  let labelY = -Infinity;
+  [["max", "Max", "var(--chart-max)", "2 4"], ["ziel", "Ziel", "var(--chart-ziel)", "6 4"], ["min", "Min", "var(--chart-min)", "6 4"]]
+    .forEach(([k, label, farbe, dash]) => {
+      labelY = Math.max(y(r[k]) + 4, labelY + 12);
+      s += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(r[k])}" y2="${y(r[k])}" stroke="${farbe}" stroke-width="1.5" stroke-dasharray="${dash}"/>
+        <text x="${W - m.r + 4}" y="${labelY}">${label}</text>`;
+    });
+
+  const punkte = [];
+  for (let j = 0; j <= X_MAX; j++) punkte.push(`${x(j).toFixed(1)},${y(lohnBei(j)).toFixed(1)}`);
+  s += `<polyline points="${punkte.join(" ")}" fill="none" stroke="var(--rot)" stroke-width="3" stroke-linejoin="round"/>`;
+
+  const px = x(Math.min(r.erfahrung, X_MAX));
+  s += `<line x1="${px}" x2="${px}" y1="${m.t}" y2="${H - m.b}" stroke="var(--text-2)" stroke-dasharray="2 3"/>`;
+  if (r.ist) {
+    s += `<circle cx="${px}" cy="${y(r.ist.lohn)}" r="6" fill="var(--chart-ist)" stroke="var(--karte)" stroke-width="2">
+      <title>Aktueller Lohn: ${chf(r.ist.lohn)}</title></circle>`;
+  }
+  s += `<circle cx="${px}" cy="${y(r.jahreslohn)}" r="7" fill="var(--rot)" stroke="var(--karte)" stroke-width="2">
+    <title>Kurvenlohn bei ${jahreText(r.erfahrung)}: ${chf(r.jahreslohn)}</title></circle>`;
+
+  $("diagramm").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img"
+    aria-label="Lohnentwicklungskurve Lohnklasse ${r.lk}: aktuelle Position ${jahreText(r.erfahrung)}, ${chf(r.jahreslohn)}">${s}</svg>`;
+}
+
+function aktualisiere() {
+  el.erfahrung.disabled = !el.manuell.checked;
+  const eingaben = leseEingaben();
+  if (!eingaben) {
+    // Keine veralteten Werte neben einer ungültigen Eingabe stehen lassen
+    $("ergebnis").innerHTML = `<h2>Kurvenlohn</h2><p class="leer">Bitte die markierten Eingaben korrigieren.</p>`;
+    $("lohnband").hidden = true;
+    $("vergleich").hidden = true;
+    $("diagramm").innerHTML = `<p class="leer">Keine Kurve: Eingaben unvollständig.</p>`;
+    $("tabelle").innerHTML = "";
+    return;
+  }
+  $("lohnband").hidden = false;
+  const r = berechne(eingaben);
+  zeigeErgebnis(r);
+  zeigeTabelle(r);
+  zeichneDiagramm(r);
+}
+
+el.manuell.addEventListener("change", () => {
+  // Beim Umschalten auf manuell den Schemawert als Startwert übernehmen
+  if (el.manuell.checked && el.erfahrung.value === "") el.erfahrung.value = "0";
+});
+$("eingaben").addEventListener("input", aktualisiere);
+$("eingaben").addEventListener("change", aktualisiere);
+aktualisiere();
+</script>
+</body>
+</html>
