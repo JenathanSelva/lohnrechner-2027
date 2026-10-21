@@ -8,7 +8,8 @@
   :root {
     --rot: #DC0018; --rot-hell: #fde8ea;
     --bg: #f4f5f7; --karte: #ffffff; --text: #1d2228; --text-2: #5b6470;
-    --linie: #dde1e6; --feld: #ffffff; --gruen: #1a7f4b; --gruen-hell: #e6f4ec;
+    color-scheme: light dark;
+    --linie: #dde1e6; --feld: #ffffff; --feld-rand: #8a939e; --gruen: #1a7f4b; --gruen-hell: #e6f4ec;
     --hinweis: #fff6e0; --hinweis-rand: #e8b730;
     --chart-min: #8a939e; --chart-ziel: #1d2228; --chart-max: #b3bac3; --chart-ist: #1f5fbf;
     --radius: 12px; --schatten: 0 1px 2px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.05);
@@ -17,7 +18,7 @@
     :root {
       --rot: #ff3b52; --rot-hell: #3a1218;
       --bg: #111418; --karte: #1a1e24; --text: #e8eaed; --text-2: #a2aab4;
-      --linie: #2e343c; --feld: #14171c; --gruen: #4cc38a; --gruen-hell: #12301f;
+      --linie: #2e343c; --feld: #14171c; --feld-rand: #6b7480; --gruen: #4cc38a; --gruen-hell: #12301f;
       --hinweis: #2e2610; --hinweis-rand: #b8901c;
       --chart-min: #8a939e; --chart-ziel: #e8eaed; --chart-max: #5b6470; --chart-ist: #6ea8ff;
       --schatten: none;
@@ -40,7 +41,8 @@
   .feld { margin-bottom: 14px; }
   .feld label { display: block; font-weight: 600; font-size: .9rem; margin-bottom: 4px; }
   .feld input[type=text], .feld select { width: 100%; padding: 10px 12px; font: inherit; color: inherit;
-    background: var(--feld); border: 1px solid var(--linie); border-radius: 8px; }
+    background: var(--feld); border: 1px solid var(--feld-rand); border-radius: 8px; }
+  .feld input::placeholder { color: var(--text-2); }
   .feld input:focus, .feld select:focus { outline: 2px solid var(--rot); outline-offset: 1px; }
   .feld input:disabled { opacity: .65; }
   .feld input[aria-invalid=true] { border-color: var(--rot); }
@@ -55,7 +57,8 @@
   .kennzahl { background: var(--bg); border-radius: 8px; padding: 10px 12px; }
   .kennzahl .wert { font-weight: 700; font-size: 1.1rem; }
   .kennzahl .titel { font-size: .8rem; color: var(--text-2); }
-  .band { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+  .band { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; text-align: center; }
+  @media (max-width: 420px) { .band { grid-template-columns: 1fr; } }
   .band .kennzahl.ziel { outline: 2px solid var(--rot); outline-offset: -2px; }
   .vergleich.ueber { background: var(--gruen-hell); }
   .vergleich.unter { background: var(--rot-hell); }
@@ -294,7 +297,9 @@ Object.keys(LOHNTABELLE.klassen).map(Number).sort((a, b) => a - b).forEach(k => 
 });
 
 function fehler(input, text) {
-  $(input.id + "-fehler").textContent = text || "";
+  // Nur bei Änderung schreiben, damit role="alert" nicht bei jedem Tastendruck erneut meldet
+  const ziel = $(input.id + "-fehler");
+  if (ziel.textContent !== (text || "")) ziel.textContent = text || "";
   input.setAttribute("aria-invalid", text ? "true" : "false");
   return !text;
 }
@@ -399,7 +404,9 @@ function niceSchritt(roh) {
 }
 
 function zeichneDiagramm(r) {
-  const W = 680, H = 340, m = { l: 64, r: 44, t: 16, b: 44 }, X_MAX = 25;
+  // viewBox = Containerbreite, damit Schrift und Linien auf dem Handy nicht mitskaliert werden
+  const W = Math.max(240, $("diagramm").clientWidth || 680), H = W < 500 ? 260 : 340;
+  const m = { l: 64, r: 44, t: 30, b: 44 }, X_MAX = 25;
   let lo = r.min * 0.95, hi = r.max * 1.03;
   if (r.ist) { lo = Math.min(lo, r.ist.lohn * 0.97); hi = Math.max(hi, r.ist.lohn * 1.03); }
   const schritt = niceSchritt((hi - lo) / 5);
@@ -418,7 +425,7 @@ function zeichneDiagramm(r) {
     s += `<text x="${x(j)}" y="${H - m.b + 18}" text-anchor="middle">${j}</text>`;
   }
   s += `<text x="${(m.l + W - m.r) / 2}" y="${H - 6}" text-anchor="middle">Erfahrungsjahre</text>`;
-  s += `<text transform="translate(14 ${(m.t + H - m.b) / 2}) rotate(-90)" text-anchor="middle">CHF pro Jahr</text>`;
+  s += `<text x="4" y="12">CHF pro Jahr</text>`;
 
   // Beschriftungen von oben nach unten mit Mindestabstand, damit Max/Ziel/Min nicht überlappen
   let labelY = -Infinity;
@@ -446,9 +453,12 @@ function zeichneDiagramm(r) {
     aria-label="Lohnentwicklungskurve Lohnklasse ${r.lk}: aktuelle Position ${jahreText(r.erfahrung)}, ${chf(r.jahreslohn)}">${s}</svg>`;
 }
 
+let letztesErgebnis = null;
+
 function aktualisiere() {
   el.erfahrung.disabled = !el.manuell.checked;
   const eingaben = leseEingaben();
+  letztesErgebnis = null;
   if (!eingaben) {
     // Keine veralteten Werte neben einer ungültigen Eingabe stehen lassen
     $("ergebnis").innerHTML = `<h2>Kurvenlohn</h2><p class="leer">Bitte die markierten Eingaben korrigieren.</p>`;
@@ -460,10 +470,17 @@ function aktualisiere() {
   }
   $("lohnband").hidden = false;
   const r = berechne(eingaben);
+  letztesErgebnis = r;
   zeigeErgebnis(r);
   zeigeTabelle(r);
   zeichneDiagramm(r);
 }
+
+let resizeTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => { if (letztesErgebnis) zeichneDiagramm(letztesErgebnis); }, 100);
+});
 
 el.manuell.addEventListener("change", () => {
   // Beim Umschalten auf manuell den Schemawert als Startwert übernehmen
